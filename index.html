@@ -325,8 +325,9 @@ document.addEventListener("click", async (e) => {
   if (t.id === "docClose") document.getElementById("doc").close();
 });
 
-// ── The practice call. Her phone does the voice (speechSynthesis) and, in Safari, the listening; the iOS keyboard mic works everywhere,
-// including the home-screen app, where Safari's speech recognition stays silent. Each interviewer turn is one call to DOUG.
+// ── The practice call. The interviewer's voice comes back with each turn (ElevenLabs, an mp3); her phone's own voice reads it if not.
+// Listening: Safari's speech recognition where it works, the iOS keyboard mic everywhere (including the home-screen app,
+// where Safari's recognition stays silent). Each interviewer turn is one call to DOUG.
 const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
 const CAN_LISTEN = !!Rec && !STANDALONE;
 let call_ = null; // { id, turns, say, end, busy, rec }
@@ -334,6 +335,18 @@ let call_ = null; // { id, turns, say, end, busy, rec }
 function voice() {
   const vs = speechSynthesis.getVoices().filter((v) => /^en[-_]US/i.test(v.lang));
   return vs.find((v) => /premium|enhanced/i.test(v.name)) || vs.find((v) => /samantha|ava|allison/i.test(v.name)) || vs[0];
+}
+// One audio element for the whole call. iOS only lets an element play sound it started inside a tap, so every tap plays a
+// blip of silence on it first; the interviewer's clip can then play on it when the answer comes back.
+const player = new Audio();
+const SILENT = "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+function unlock() { window.speechSynthesis?.cancel(); player.src = SILENT; player.play().catch(() => {}); }
+function hush() { player.pause(); window.speechSynthesis?.cancel(); }
+function say(text, audio) {
+  hush();
+  if (!audio) return speak(text);
+  player.src = `data:audio/mpeg;base64,${audio}`;
+  player.play().catch(() => speak(text));
 }
 function speak(text) {
   if (!window.speechSynthesis) return;
@@ -366,9 +379,9 @@ async function turn() {
   try {
     const reply = PREVIEW ? previewTurn(call_.turns) : await fetch(API, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ k: KEY, op: "interview", id: call_.id, turns: call_.turns }) }).then((x) => x.json());
     if (reply.error) throw new Error(reply.error);
-    call_.turns.push({ who: "them", text: reply.say }); call_.say = reply.say; call_.draft = "";
+    call_.turns.push({ who: "them", text: reply.say }); call_.say = reply.say; call_.audio = reply.audio; call_.draft = "";
     if (reply.done) { call_.end = reply; if (reply.score && reply.score > Number(store.get(`best:${call_.id}`) || 0)) store.set(`best:${call_.id}`, String(reply.score)); }
-    speak(reply.say);
+    say(reply.say, reply.audio);
   } catch (err) {
     if (call_.turns.at(-1)?.who === "her") call_.draft = call_.turns.pop().text; // keep her answer so she can resend it
     toast(err.message || "The line dropped. Try again.");
@@ -381,11 +394,11 @@ function stopListening() { if (call_?.rec) { call_.rec.stop(); call_.rec = null;
 document.getElementById("call").addEventListener("click", async (e) => {
   const t = e.target.closest("button"); if (!t) return;
   e.stopPropagation();
-  if (t.id === "callGo" || t.id === "callAgain") { speak(""); call_ = { id: call_.id, turns: [] }; await turn(); return; } // the empty line unlocks the voice inside her tap (iOS)
-  if (t.id === "again") { speak(call_.say); return; }
+  if (t.id === "callGo" || t.id === "callAgain") { unlock(); call_ = { id: call_.id, turns: [] }; await turn(); return; }
+  if (t.id === "again") { say(call_.say, call_.audio); return; }
   if (t.id === "talk") {
     if (call_.rec) { stopListening(); phone(); return; }
-    speechSynthesis.cancel();
+    hush();
     const rec = new Rec(), base = document.getElementById("answer").value.trim();
     rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true;
     rec.onresult = (ev) => { const said = [...ev.results].map((x) => x[0].transcript).join(" "); const box = document.getElementById("answer"); if (box) box.value = (base ? base + " " : "") + said; call_.draft = box?.value; };
@@ -396,12 +409,12 @@ document.getElementById("call").addEventListener("click", async (e) => {
   if (t.id === "send") {
     const text = document.getElementById("answer").value.trim();
     if (!text) { toast("Say or type your answer first"); return; }
-    stopListening(); speak(""); call_.turns.push({ who: "her", text }); await turn(); return;
+    stopListening(); unlock(); call_.turns.push({ who: "her", text }); await turn(); return;
   }
-  if (t.id === "hang" || t.id === "hang2") { stopListening(); speechSynthesis?.cancel(); document.getElementById("call").close(); render(); }
+  if (t.id === "hang" || t.id === "hang2") { stopListening(); hush(); document.getElementById("call").close(); render(); }
 });
 document.getElementById("call").addEventListener("input", (e) => { if (e.target.id === "answer") call_.draft = e.target.value; });
-document.getElementById("call").addEventListener("close", () => { stopListening(); window.speechSynthesis?.cancel(); });
+document.getElementById("call").addEventListener("close", () => { stopListening(); hush(); });
 
 document.addEventListener("submit", async (e) => {
   if (e.target.id !== "storyForm") return;
