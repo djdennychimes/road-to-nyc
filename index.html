@@ -1,0 +1,314 @@
+<!doctype html>
+<!-- The Road to NYC page. Published as-is (with manifest.webmanifest + icon-*.png) to a static host: it holds NO personal data. Everything personal loads
+     from DOUG's cloud (POST /sydney) with the key in her link's ?k=… (an old #k= link gets copied into ?k=). No manifest start_url, so the
+     home-screen app keeps the URL she added, key included; the page sends no Referer, so job sites never see it.
+     `node scripts/sydney-week.ts --dry` writes a preview copy with sample data baked in (window.ROAD_DATA). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#fbeef2">
+<meta name="referrer" content="no-referrer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Road to NYC">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Road to NYC</title>
+<!-- No start_url in the manifest on purpose: the home-screen app then opens the exact URL she added, ?k= key included. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e0457b'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' text-anchor='middle' fill='white'%3E%E2%98%85%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #fbeef2;      /* blush, the page */
+    --card: #fffafb;
+    --ink: #2a1530;        /* plum, all text */
+    --soft: #6e5573;       /* plum, quieter text */
+    --line: #e0457b;       /* her line color */
+    --sun: #f2a516;        /* deadlines soon */
+    --teal: #138a7d;       /* applied / moving */
+    --cobalt: #2f56c8;     /* interviews */
+    --rule: #ecd3dc;
+    --r-lg: 22px; --r-sm: 12px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 Figtree, system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 16px 64px; }
+  h1, h2, h3 { font-family: "Bricolage Grotesque", Figtree, sans-serif; margin: 0; line-height: 1.1; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; border-radius: 6px; }
+  a { color: var(--cobalt); }
+
+  /* Hero: her line, from today to New York. */
+  .hero { padding: 12px 0 8px; }
+  .bullet { width: 56px; height: 56px; border-radius: 50%; background: var(--line); color: #fff; display: grid; place-items: center;
+    font: 800 32px/1 "Bricolage Grotesque", sans-serif; box-shadow: 0 0 0 4px var(--paper), 0 0 0 6px var(--line); }
+  .hello { margin: 18px 0 2px; color: var(--soft); font-weight: 500; }
+  .hero h1 { font-size: clamp(40px, 11vw, 64px); font-weight: 800; letter-spacing: -0.02em; }
+  .count { margin: 10px 0 0; color: var(--soft); }
+  .count b { color: var(--ink); }
+
+  .track { position: relative; margin: 30px 0 10px; display: grid; grid-template-columns: repeat(6, 1fr); }
+  .track::before { content: ""; position: absolute; left: 8%; right: 8%; top: 13px; height: 6px; border-radius: 3px; background: var(--rule); }
+  .track .fill { position: absolute; left: 8%; top: 13px; height: 6px; border-radius: 3px; background: var(--line); transition: width 1.2s cubic-bezier(.2,.8,.2,1); width: 0; }
+  .stop { position: relative; text-align: center; font-size: 12px; font-weight: 600; color: var(--soft); }
+  .stop i { display: block; width: 32px; height: 32px; margin: 0 auto 6px; border-radius: 50%; background: var(--card); border: 4px solid var(--rule);
+    font: 700 13px/24px "Bricolage Grotesque", sans-serif; font-style: normal; color: var(--ink); }
+  .stop.on i { border-color: var(--line); }
+  .stop.end i { background: var(--ink); border-color: var(--ink); color: #fff; }
+  @media (prefers-reduced-motion: reduce) { .track .fill { transition: none; } }
+
+  .note { margin: 22px 0 0; padding: 16px 18px; border-radius: var(--r-lg); background: var(--ink); color: #fde7ef; font-size: 17px; }
+  .note small { display: block; margin-top: 6px; color: #c9a9bf; font-size: 13px; }
+
+  section { margin-top: 40px; }
+  section > h2 { font-size: 26px; font-weight: 700; }
+  section > p.sub { margin: 4px 0 14px; color: var(--soft); }
+
+  /* A role card. Dream roles get her line color on the edge; quick ones stay quiet. */
+  .role { background: var(--card); border-radius: var(--r-lg); margin: 12px 0; border: 1px solid var(--rule); overflow: hidden; }
+  .role.dream { border-left: 6px solid var(--line); }
+  .role > button.head { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 16px 18px; }
+  .role .co { font: 700 19px/1.2 "Bricolage Grotesque", sans-serif; }
+  .role .ti { margin-top: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--paper); color: var(--soft); }
+  .chip.soon { background: #fff1d6; color: #8a5a00; font-weight: 600; }
+  .chip.st { background: #dff3ef; color: #0b5e55; font-weight: 600; }
+  .chip.st.interview, .chip.st.offer { background: #e3e9fb; color: #213f97; }
+  .why { margin: 10px 0 0; color: var(--soft); font-size: 15px; }
+  .body { display: none; padding: 0 18px 18px; }
+  .role.open .body { display: block; }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  .steps > li { counter-increment: s; position: relative; padding: 12px 0 12px 40px; border-top: 1px solid var(--rule); }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: var(--paper);
+    font: 700 13px/26px "Bricolage Grotesque", sans-serif; text-align: center; }
+  .steps h3 { font-size: 16px; font-weight: 700; }
+  .qa { margin: 8px 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--paper); font-size: 15px; }
+  .qa b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; margin: 8px 8px 0 0; padding: 9px 14px; border-radius: 999px; border: 1.5px solid var(--ink);
+    background: none; font-weight: 600; font-size: 15px; text-decoration: none; color: var(--ink); }
+  .btn.main { background: var(--line); border-color: var(--line); color: #fff; }
+  .btn.small { padding: 4px 10px; font-size: 13px; margin-top: 6px; }
+  .status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .status button { padding: 8px 12px; border-radius: 999px; border: 1.5px solid var(--rule); background: var(--card); font-size: 14px; font-weight: 600; }
+  .status button[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .prep { margin: 6px 0 0; padding-left: 20px; }
+
+  details.fold { margin-top: 40px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: 14px 18px; }
+  details.fold summary { font: 700 20px/1.3 "Bricolage Grotesque", sans-serif; cursor: pointer; }
+  details.fold .sub { color: var(--soft); margin: 4px 0 0; font-size: 15px; }
+  .mini { padding: 10px 0; border-top: 1px solid var(--rule); font-size: 15px; }
+  .mini:first-of-type { margin-top: 10px; }
+
+  .story label { display: block; margin: 14px 0 4px; font-weight: 600; }
+  .story textarea { width: 100%; min-height: 70px; padding: 10px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--rule); background: var(--paper);
+    font: inherit; color: var(--ink); resize: vertical; }
+  .story .done { color: var(--teal); font-weight: 600; }
+
+  .tip { margin-top: 22px; padding: 14px 18px; border-radius: var(--r-lg); background: var(--card); border: 1.5px solid var(--line); }
+  .tip p { margin: 0; }
+  .empty { padding: 22px 18px; border-radius: var(--r-lg); border: 2px dashed var(--rule); color: var(--soft); }
+  footer { margin-top: 56px; text-align: center; color: var(--soft); font-size: 14px; }
+  .toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translate(-50%, 120px); background: var(--ink); color: #fff;
+    padding: 10px 18px; border-radius: 999px; font-weight: 600; transition: transform .25s; z-index: 5; }
+  .toast.show { transform: translate(-50%, 0); }
+
+  /* The resume sheet: what "Save as PDF" prints. */
+  dialog { border: 0; border-radius: var(--r-lg); padding: 0; width: min(720px, calc(100vw - 24px)); max-height: 88vh; }
+  dialog::backdrop { background: rgba(42, 21, 48, .45); }
+  .bar { position: sticky; top: 0; display: flex; gap: 8px; justify-content: flex-end; padding: 10px; background: #fff; border-bottom: 1px solid var(--rule); }
+  .bar .btn { margin: 0; white-space: nowrap; padding: 8px 12px; font-size: 14px; }
+  .sheet { padding: 36px 40px; background: #fff; color: #111; font: 400 14px/1.45 Figtree, sans-serif; }
+  .sheet h1 { font-size: 26px; } .sheet h2 { font-size: 15px; margin: 16px 0 4px; padding-bottom: 3px; border-bottom: 1.5px solid #111; }
+  .sheet h3 { font-size: 14px; margin: 8px 0 2px; } .sheet p { margin: 4px 0; } .sheet ul { margin: 4px 0; padding-left: 18px; }
+  @media (max-width: 480px) { .sheet { padding: 22px 18px; } }
+  @media print {
+    body > *:not(dialog) { display: none !important; }
+    dialog { position: static; width: auto; max-height: none; box-shadow: none; }
+    .bar { display: none; } .sheet { padding: 0; }
+  }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"><p style="margin-top:40vh;text-align:center;color:var(--soft)">Loading your line…</p></main>
+<div class="toast" id="toast" role="status"></div>
+<dialog id="doc"><div class="bar"><button class="btn" id="docCopy">Copy text</button><button class="btn main" id="docPrint">Save as PDF</button><button class="btn" id="docClose">Close</button></div><div class="sheet" id="sheet"></div></dialog>
+<script>
+const API = "https://mhmydpeeiynhmktqccpf.supabase.co/functions/v1/doug/sydney";
+// Her link carries ?k= from the first load, so "Add to Home Screen" saves it (a #k= link gets copied into ?k=).
+// The home-screen app has its own storage, so the URL is the only thing that carries it over.
+const KEY = new URLSearchParams(location.hash.slice(1)).get("k") || new URLSearchParams(location.search).get("k") || "";
+if (KEY && new URLSearchParams(location.search).get("k") !== KEY) history.replaceState(null, "", `?k=${encodeURIComponent(KEY)}${location.hash}`);
+const STANDALONE = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const PREVIEW = window.ROAD_DATA; // set only in the local --dry preview
+let state = PREVIEW || null;
+const open = new Set();
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const day = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const daysTo = (iso) => Math.round((new Date(iso + "T12:00:00") - new Date(state.view.today + "T12:00:00")) / 864e5);
+
+// Gentle, never pushy. One a day, the same one all day.
+const NOTES = [
+  ["You don't have to do it all today. One application is a whole step down the line.", "Small steps still move the train."],
+  ["Every company on this page needs someone who can talk to people the way you do.", "That's not nothing. That's the job."],
+  ["Rejections here are about timing and luck, not about you.", "The right yes only needs to happen once."],
+  ["You're allowed to have slow weeks. Your page will be right here.", "No streaks to break. No guilt."],
+  ["The people hiring for these roles were exactly where you are a few years ago.", "Every one of them started with an application."],
+  ["You're building something real for your future, even on the days it doesn't feel like it.", "Proud of you, always."],
+  ["Take a breath. Pick the card that looks most fun. Start there.", "Fun counts. It shows in interviews."],
+];
+
+const STOPS = [["Story", "story"], ["Applied", "applied"], ["Heard back", "heard"], ["Interview", "interview"], ["Offer", "offer"], ["NYC", "nyc"]];
+
+async function call(op, extra = {}) {
+  if (PREVIEW) return null; // the preview keeps taps on the page only
+  const res = await fetch(API, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ k: KEY, op, ...extra }) });
+  if (!res.ok) throw new Error(res.status === 401 ? "This link is missing its key. Open the exact link you were sent." : "Couldn't reach DOUG. Check your signal and try again.");
+  return res.json();
+}
+
+function toast(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
+
+function storyDone() { return state.questions.every((q) => (state.story[q.id] || "").trim()); }
+
+function hero() {
+  const { stats, today } = state.view;
+  const all = [...state.view.moving, ...state.view.quiet];
+  const counts = { story: storyDone() ? "✓" : "", applied: stats.applied, heard: all.filter((r) => ["heard", "interview", "offer"].includes(r.status)).length, interview: stats.interviews, offer: stats.offers, nyc: "🗽" };
+  const at = stats.offers ? 4 : stats.interviews ? 3 : counts.heard ? 2 : stats.applied ? 1 : storyDone() ? 0 : -1;
+  const note = NOTES[Math.floor(new Date(today + "T12:00:00") / 864e5) % NOTES.length];
+  const move = state.story.moveBy && daysTo(state.story.moveBy);
+  return `<header class="hero">
+    <div class="bullet" aria-hidden="true">${esc((state.story.name || "★")[0])}</div>
+    <p class="hello">${state.story.name ? `Hi ${esc(state.story.name)}` : "Hi there"}</p>
+    <h1>Next stop:<br>New York.</h1>
+    <p class="count">${stats.applied ? `<b>${stats.applied}</b> application${stats.applied === 1 ? "" : "s"} sent${stats.weeks > 1 ? ` across <b>${stats.weeks}</b> weeks` : ""}.` : "Your first application is one tap away."}${move > 0 ? ` <b>${move}</b> days to summer in the city.` : ""}</p>
+    <div class="track" role="img" aria-label="Your progress: ${STOPS.map(([l, k]) => `${l} ${counts[k] || 0}`).join(", ")}">
+      <span class="fill" id="fill" data-w="${Math.max(0, at) / 5 * 84}"></span>
+      ${STOPS.map(([label, k], i) => `<div class="stop ${i <= at ? "on" : ""} ${k === "nyc" ? "end" : ""}"><i>${esc(counts[k] || "")}</i>${label}</div>`).join("")}
+    </div>
+    <p class="note">${esc(note[0])}<small>${esc(note[1])}</small></p>
+  </header>`;
+}
+
+function chips(r) {
+  const out = [`<span class="chip">${esc(r.place)}</span>`];
+  if (r.pay) out.push(`<span class="chip">${esc(r.pay)}</span>`);
+  if (r.deadline) { const d = daysTo(r.deadline); out.push(`<span class="chip ${d <= 14 ? "soon" : ""}">${d <= 0 ? "Due today" : d === 1 ? "Due tomorrow" : `Due ${day(r.deadline)}`}</span>`); }
+  if (r.status !== "ready") out.push(`<span class="chip st ${r.status}">${{ applied: "Applied", heard: "Heard back", interview: "Interview", offer: "Offer!", passed: "Not this one" }[r.status]}${r.appliedOn ? ` ${day(r.appliedOn)}` : ""}</span>`);
+  if (r.followUp) out.push(`<span class="chip">Check in ${day(r.followUp)}</span>`);
+  return `<div class="chips">${out.join("")}</div>`;
+}
+
+function card(r) {
+  const p = r.packet || {};
+  const steps = [];
+  steps.push(`<li><h3>Open the listing</h3><a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener">Open ${esc(r.company)}'s posting</a></li>`);
+  if (p.resume) steps.push(`<li><h3>Your resume for this one</h3><button class="btn small" data-doc="resume" data-id="${esc(r.id)}">View and save as PDF</button></li>`);
+  if (p.coverLetter) steps.push(`<li><h3>Your cover letter</h3><button class="btn small" data-doc="coverLetter" data-id="${esc(r.id)}">View and save as PDF</button></li>`);
+  if (p.answers?.length) steps.push(`<li><h3>Answers, ready to paste</h3>${p.answers.map((a, i) => `<div class="qa"><b>${esc(a.q)}</b>${esc(a.a)}<br><button class="btn small" data-copy="answers" data-i="${i}" data-id="${esc(r.id)}">Copy</button></div>`).join("")}</li>`);
+  if (p.outreach?.length) steps.push(`<li><h3>Optional: a note to send</h3>${p.outreach.map((o, i) => `<div class="qa"><b>To ${esc(o.to)}</b>${esc(o.note)}<br><button class="btn small" data-copy="outreach" data-i="${i}" data-id="${esc(r.id)}">Copy</button></div>`).join("")}</li>`);
+  if (p.prep?.length) steps.push(`<li><h3>Interview prep</h3><ul class="prep">${p.prep.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></li>`);
+  if (p.thankYou) steps.push(`<li><h3>Thank-you note for after</h3><div class="qa">${esc(p.thankYou)}<br><button class="btn small" data-copy="thankYou" data-id="${esc(r.id)}">Copy</button></div></li>`);
+  const choices = [["applied", "Applied ✓"], ["heard", "Heard back"], ["interview", "Interview"], ["offer", "Offer!"], ["passed", "Not this one"]];
+  steps.push(`<li><h3>Where it stands</h3><div class="status">${choices.map(([s, l]) => `<button data-status="${s}" data-id="${esc(r.id)}" aria-pressed="${r.status === s}">${l}</button>`).join("")}</div></li>`);
+  return `<article class="role ${r.tier === "dream" ? "dream" : ""} ${open.has(r.id) ? "open" : ""}" id="r-${esc(r.id)}">
+    <button class="head" data-open="${esc(r.id)}" aria-expanded="${open.has(r.id)}">
+      <div class="co">${esc(r.company)}</div><div class="ti">${esc(r.title)}</div>${chips(r)}
+      ${r.why ? `<p class="why">${esc(r.why)}</p>` : ""}
+    </button>
+    <div class="body"><ol class="steps">${steps.join("")}</ol></div>
+  </article>`;
+}
+
+function storyCard() {
+  const done = storyDone();
+  return `<details class="fold story" ${done ? "" : "open"}>
+    <summary>Build your story</summary>
+    <p class="sub">${done ? '<span class="done">Done. Both resumes are built from this.</span> Edit any time.' : "Six quick questions, about five minutes. Your resumes rebuild from your answers, in your words."}</p>
+    <form id="storyForm">${state.questions.map((q) => `<label for="q-${q.id}">${esc(q.q)}</label><textarea id="q-${q.id}" name="${q.id}">${esc(state.story[q.id] || "")}</textarea>`).join("")}
+    <button class="btn main" type="submit">Save my story</button></form>
+  </details>`;
+}
+
+function render() {
+  const v = state.view;
+  const dream = v.thisWeek.filter((r) => r.tier === "dream"), quick = v.thisWeek.filter((r) => r.tier !== "dream");
+  document.getElementById("app").innerHTML = `
+    ${hero()}
+    ${STANDALONE || store.get("tipSeen") ? "" : `<div class="tip"><p><b>Keep this on your home screen.</b> In Safari, tap Share, then “Add to Home Screen.” It opens like an app, already signed in.</p><button class="btn small" id="tipOk">Got it</button></div>`}
+    ${storyDone() ? "" : storyCard()}
+    <section><h2>This week's picks</h2><p class="sub">${v.thisWeek.length ? "Everything is drafted. Your part: read it, tweak anything that doesn't sound like you, and submit." : ""}</p>
+      ${v.thisWeek.length ? "" : `<div class="empty">You're all caught up. New picks land here on Sundays.</div>`}
+      ${dream.length ? `<h3 style="margin:18px 0 0;font-size:18px">Dream picks</h3>${dream.map(card).join("")}` : ""}
+      ${quick.length ? `<h3 style="margin:22px 0 0;font-size:18px">Quick ones, about 3 minutes each</h3>${quick.map(card).join("")}` : ""}
+    </section>
+    ${v.moving.length ? `<section><h2>On the move</h2><p class="sub">Everything you've sent, and what's next for each.</p>${v.moving.map(card).join("")}</section>` : ""}
+    ${v.shelf.length ? `<details class="fold"><summary>More roles (${v.shelf.length})</summary><p class="sub">Extras, if you're feeling it. No pressure.</p>${v.shelf.map(card).join("")}</details>` : ""}
+    ${storyDone() ? storyCard() : ""}
+    ${v.quiet.length ? `<details class="fold"><summary>Quiet pile (${v.quiet.length})</summary><p class="sub">No news in three weeks, or not the one. It happens to everyone. Tap one to bring it back.</p>${v.quiet.map((r) => `<div class="mini"><b>${esc(r.company)}</b>, ${esc(r.title)} <button class="btn small" data-status="applied" data-id="${esc(r.id)}">Still waiting</button></div>`).join("")}</details>` : ""}
+    ${state.story.inbox ? "" : `<details class="fold"><summary>Want help watching your inbox?</summary><p class="sub">If you say yes, DOUG can spot recruiter replies and interview invites in your email and update your cards for you, so nothing gets buried. It only reads job emails, never sends anything, and you can turn it off any time. Tap yes and it gets set up with you in person.</p><button class="btn main" id="inboxYes">Yes, set this up</button></details>`}
+    <footer>Your page, your pace.</footer>`;
+  requestAnimationFrame(() => { const f = document.getElementById("fill"); if (f) f.style.width = f.dataset.w + "%"; });
+}
+
+const find = (id) => [...state.view.thisWeek, ...state.view.moving, ...state.view.shelf, ...state.view.quiet].find((r) => r.id === id);
+
+function md(text) {
+  return esc(text).split("\n").map((l) => /^### /.test(l) ? `<h3>${l.slice(4)}</h3>` : /^## /.test(l) ? `<h2>${l.slice(3)}</h2>` : /^# /.test(l) ? `<h1>${l.slice(2)}</h1>` : /^[-*] /.test(l) ? `<li>${l.slice(2)}</li>` : l.trim() ? `<p>${l}</p>` : "")
+    .join("").replace(/(<li>.*?<\/li>)+/g, (m) => `<ul>${m}</ul>`).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("button, a");
+  if (!t) return;
+  if (t.dataset.open) { open.has(t.dataset.open) ? open.delete(t.dataset.open) : open.add(t.dataset.open); render(); return; }
+  if (t.dataset.copy) {
+    const p = find(t.dataset.id).packet, v = t.dataset.i != null ? p[t.dataset.copy][t.dataset.i] : p[t.dataset.copy];
+    await navigator.clipboard.writeText(typeof v === "string" ? v : v.a ?? v.note); toast("Copied"); return;
+  }
+  if (t.dataset.doc) {
+    const text = find(t.dataset.id).packet[t.dataset.doc];
+    document.getElementById("sheet").innerHTML = md(text); document.getElementById("doc").dataset.text = text; document.getElementById("doc").showModal(); return;
+  }
+  if (t.dataset.status) {
+    const r = find(t.dataset.id), s = t.dataset.status;
+    try {
+      const fresh = await call("status", { id: r.id, status: s });
+      if (fresh) state = fresh; else { r.status = s; if (s === "applied") r.appliedOn ||= state.view.today; if (!state.view.moving.includes(r)) { state.view.thisWeek = state.view.thisWeek.filter((x) => x !== r); state.view.moving.unshift(r); } if (s === "applied") state.view.stats.applied++; }
+      render();
+      toast({ applied: "Sent! That's a real step 🎉", heard: "They wrote back! 💌", interview: "An interview! You've got this ✨", offer: "AN OFFER!! 🗽", passed: "Onward. The right one's coming." }[s]);
+    } catch (err) { toast(err.message); }
+    return;
+  }
+  if (t.id === "inboxYes") { try { const fresh = await call("inbox"); state = fresh || { ...state, story: { ...state.story, inbox: "yes" } }; render(); toast("Got it. It gets set up with you soon 💌"); } catch (err) { toast(err.message); } return; }
+  if (t.id === "tipOk") { store.set("tipSeen", "1"); t.parentElement.remove(); return; }
+  if (t.id === "docPrint") window.print();
+  if (t.id === "docCopy") { await navigator.clipboard.writeText(document.getElementById("doc").dataset.text); toast("Copied"); }
+  if (t.id === "docClose") document.getElementById("doc").close();
+});
+
+document.addEventListener("submit", async (e) => {
+  if (e.target.id !== "storyForm") return;
+  e.preventDefault();
+  const answers = Object.fromEntries(new FormData(e.target));
+  try { const fresh = await call("story", { answers }); state = fresh || { ...state, story: { ...state.story, ...answers } }; render(); toast(storyDone() ? "Your story is saved. Resumes rebuild this week ✨" : "Saved. Finish the rest whenever."); }
+  catch (err) { toast(err.message); }
+});
+
+(async () => {
+  try { if (!state) state = await call("load"); render(); }
+  catch (err) { document.getElementById("app").innerHTML = `<div class="empty" style="margin-top:30vh">${esc(err.message)}</div>`; }
+})();
+</script>
+</body>
+</html>
