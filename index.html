@@ -134,11 +134,34 @@
     dialog { position: static; width: auto; max-height: none; box-shadow: none; }
     .bar { display: none; } .sheet { padding: 0; }
   }
+
+  /* The practice call: a phone screen, full height, one big line at a time. */
+  .co-page p { margin: 6px 0; font-size: 15px; } .co-page b { font-weight: 600; }
+  .co-page ul { margin: 4px 0 8px; padding-left: 20px; font-size: 15px; }
+  dialog#call { width: min(520px, calc(100vw - 16px)); height: min(760px, calc(100dvh - 16px)); max-height: none; background: var(--ink); color: #fde7ef; }
+  .phone { display: flex; flex-direction: column; height: 100%; padding: 20px 18px max(18px, env(safe-area-inset-bottom)); gap: 12px; }
+  .phone .who { display: flex; align-items: center; gap: 12px; }
+  .phone .who i { width: 44px; height: 44px; border-radius: 50%; background: var(--line); display: grid; place-items: center; font-style: normal; font-size: 22px; }
+  .phone .who b { display: block; font: 700 18px/1.2 "Bricolage Grotesque", sans-serif; color: #fff; }
+  .phone .who small { color: #c9a9bf; }
+  .phone .said { flex: 1; overflow: auto; font: 500 21px/1.4 "Bricolage Grotesque", sans-serif; color: #fff; padding: 8px 0; }
+  .phone .said .q { margin: 0; }
+  .phone .score { margin-top: 14px; padding: 14px 16px; border-radius: var(--r-lg); background: #fde7ef; color: var(--ink); font: 400 16px/1.5 Figtree, sans-serif; }
+  .phone .score .num { font: 800 40px/1 "Bricolage Grotesque", sans-serif; color: var(--line); }
+  .phone textarea { width: 100%; min-height: 96px; padding: 12px; border-radius: var(--r-sm); border: 0; font: inherit; font-size: 17px; background: #fffafb; color: var(--ink); resize: none; }
+  .phone .hint { margin: 0; font-size: 13px; color: #c9a9bf; }
+  .phone .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .phone .btn { margin: 0; border-color: #fde7ef; color: #fde7ef; }
+  .phone .btn.main { color: #fff; }
+  .phone .btn.hang { background: #c23a3a; border-color: #c23a3a; color: #fff; margin-left: auto; white-space: nowrap; flex: none; }
+  .phone .btn[aria-pressed="true"] { background: var(--sun); border-color: var(--sun); color: var(--ink); }
+  .phone .dots::after { content: "…"; animation: blink 1s infinite; } @keyframes blink { 50% { opacity: .2; } }
 </style>
 </head>
 <body>
 <main id="app" aria-live="polite"><p style="margin-top:40vh;text-align:center;color:var(--soft)">Loading your line…</p></main>
 <div class="toast" id="toast" role="status"></div>
+<dialog id="call" aria-label="Practice phone interview"><div class="phone" id="phone"></div></dialog>
 <dialog id="doc"><div class="bar"><button class="btn" id="docCopy">Copy text</button><button class="btn main" id="docPrint">Save as PDF</button><button class="btn" id="docClose">Close</button></div><div class="sheet" id="sheet"></div></dialog>
 <script>
 const API = "https://mhmydpeeiynhmktqccpf.supabase.co/functions/v1/doug/sydney";
@@ -212,6 +235,8 @@ function chips(r) {
 function card(r) {
   const p = r.packet || {};
   const steps = [];
+  const c = p.company;
+  if (c) steps.push(`<li class="co-page"><h3>Get to know ${esc(r.company)}</h3>${c.about ? `<p>${esc(c.about)}</p>` : ""}${c.brands?.length ? `<p><b>Brands and products:</b> ${c.brands.map(esc).join(", ")}</p>` : ""}${c.news?.length ? `<p><b>In the news</b></p><ul>${c.news.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}${c.culture ? `<p><b>What it's like there:</b> ${esc(c.culture)}</p>` : ""}${c.whyYou ? `<p><b>Why you fit:</b> ${esc(c.whyYou)}</p>` : ""}</li>`);
   steps.push(`<li><h3>Open the listing</h3><a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener">Open ${esc(r.company)}'s posting</a></li>`);
   if (p.resume) steps.push(`<li><h3>Your resume for this one</h3><button class="btn small" data-doc="resume" data-id="${esc(r.id)}">View and save as PDF</button></li>`);
   if (p.coverLetter) steps.push(`<li><h3>Your cover letter</h3><button class="btn small" data-doc="coverLetter" data-id="${esc(r.id)}">View and save as PDF</button></li>`);
@@ -219,6 +244,8 @@ function card(r) {
   if (p.outreach?.length) steps.push(`<li><h3>Optional: a note to send</h3>${p.outreach.map((o, i) => `<div class="qa"><b>To ${esc(o.to)}</b>${esc(o.note)}<br><button class="btn small" data-copy="outreach" data-i="${i}" data-id="${esc(r.id)}">Copy</button></div>`).join("")}</li>`);
   if (p.prep?.length) steps.push(`<li><h3>Interview prep</h3><ul class="prep">${p.prep.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></li>`);
   if (p.thankYou) steps.push(`<li><h3>Thank-you note for after</h3><div class="qa">${esc(p.thankYou)}<br><button class="btn small" data-copy="thankYou" data-id="${esc(r.id)}">Copy</button></div></li>`);
+  const best = store.get(`best:${r.id}`);
+  steps.push(`<li><h3>Practice the phone interview</h3><p class="why" style="margin:2px 0 0">${esc(r.company)} calls, asks what they'd really ask, and tells you the one thing to fix. Redo it as often as you like.</p><button class="btn small main" data-call="${esc(r.id)}">📞 Start a practice call</button>${best ? `<span class="chip" style="margin-left:6px">Best so far: ${esc(best)}/10</span>` : ""}</li>`);
   const choices = [["applied", "Applied ✓"], ["heard", "Heard back"], ["interview", "Interview"], ["offer", "Offer!"], ["passed", "Not this one"]];
   steps.push(`<li><h3>Where it stands</h3><div class="status">${choices.map(([s, l]) => `<button data-status="${s}" data-id="${esc(r.id)}" aria-pressed="${r.status === s}">${l}</button>`).join("")}</div></li>`);
   return `<article class="role ${r.tier === "dream" ? "dream" : ""} ${open.has(r.id) ? "open" : ""}" id="r-${esc(r.id)}">
@@ -276,6 +303,7 @@ document.addEventListener("click", async (e) => {
     const p = find(t.dataset.id).packet, v = t.dataset.i != null ? p[t.dataset.copy][t.dataset.i] : p[t.dataset.copy];
     await navigator.clipboard.writeText(typeof v === "string" ? v : v.a ?? v.note); toast("Copied"); return;
   }
+  if (t.dataset.call) { call_ = { id: t.dataset.call, turns: [] }; phone(); document.getElementById("call").showModal(); return; }
   if (t.dataset.doc) {
     const text = find(t.dataset.id).packet[t.dataset.doc];
     document.getElementById("sheet").innerHTML = md(text); document.getElementById("doc").dataset.text = text; document.getElementById("doc").showModal(); return;
@@ -296,6 +324,84 @@ document.addEventListener("click", async (e) => {
   if (t.id === "docCopy") { await navigator.clipboard.writeText(document.getElementById("doc").dataset.text); toast("Copied"); }
   if (t.id === "docClose") document.getElementById("doc").close();
 });
+
+// ── The practice call. Her phone does the voice (speechSynthesis) and, in Safari, the listening; the iOS keyboard mic works everywhere,
+// including the home-screen app, where Safari's speech recognition stays silent. Each interviewer turn is one call to DOUG.
+const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+const CAN_LISTEN = !!Rec && !STANDALONE;
+let call_ = null; // { id, turns, say, end, busy, rec }
+
+function voice() {
+  const vs = speechSynthesis.getVoices().filter((v) => /^en[-_]US/i.test(v.lang));
+  return vs.find((v) => /premium|enhanced/i.test(v.name)) || vs.find((v) => /samantha|ava|allison/i.test(v.name)) || vs[0];
+}
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.rate = 1.02; const v = voice(); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+
+function phone() {
+  const r = find(call_.id), e = call_.end;
+  document.getElementById("phone").innerHTML = `
+    <div class="who"><i aria-hidden="true">📞</i><div><b>${esc(r.company)}</b><small>${esc(r.title)}</small></div><button class="btn small hang" id="hang">Hang up</button></div>
+    <div class="said">${call_.busy ? '<p class="q dots">Thinking</p>' : call_.say ? `<p class="q">${esc(call_.say)}</p>` : `<p class="q">Ready when you are. Find a quiet spot, turn your sound on, and answer out loud like it's the real call.</p>`}
+      ${e ? `<div class="score">${e.score ? `<div class="num">${esc(e.score)}/10</div>` : ""}${e.good ? `<p><b>Best part:</b> ${esc(e.good)}</p>` : ""}${e.fix ? `<p><b>Try this next time:</b> ${esc(e.fix)}</p>` : ""}</div>` : ""}</div>
+    ${!call_.say && !call_.busy ? `<button class="btn main" id="callGo">Start the call</button>` : e ? `<div class="row"><button class="btn main" id="callAgain">Try it again</button><button class="btn" id="hang2">Done for now</button></div>` : `
+      <textarea id="answer" placeholder="Your answer…" aria-label="Your answer" ${call_.busy ? "disabled" : ""}>${esc(call_.draft || "")}</textarea>
+      <p class="hint">${CAN_LISTEN ? "Tap Talk and answer out loud, or" : "Tap"} the 🎤 on your keyboard to talk your answer.</p>
+      <div class="row">${CAN_LISTEN ? `<button class="btn" id="talk" aria-pressed="${!!call_.rec}">🎙 ${call_.rec ? "Listening… tap to stop" : "Talk"}</button>` : ""}<button class="btn" id="again">🔊 Hear it again</button><button class="btn main" id="send" ${call_.busy ? "disabled" : ""}>Send answer</button></div>`}`;
+}
+
+// Offline preview only: a pretend interviewer, so the call can be clicked through with sample data.
+function previewTurn(turns) {
+  const n = turns.filter((t) => t.who === "her").length, r = find(call_.id);
+  const qs = [`Hi, this is the recruiting team at ${r.company}. Thanks for hopping on. Tell me a little about yourself.`, `Love that. Why ${r.company}?`, "Tell me about a time you got someone excited about something.", "Pitch me one of our products like I'm a customer.", "What questions do you have for me?"];
+  return n < 5 ? { say: qs[n], done: false } : { say: "Thanks so much, that was great. We'll be in touch.", done: true, score: 7, good: "Your energy on the pitch felt real.", fix: "Lead with one number from your story, then tell how you did it." };
+}
+
+async function turn() {
+  call_.busy = true; phone();
+  try {
+    const reply = PREVIEW ? previewTurn(call_.turns) : await fetch(API, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ k: KEY, op: "interview", id: call_.id, turns: call_.turns }) }).then((x) => x.json());
+    if (reply.error) throw new Error(reply.error);
+    call_.turns.push({ who: "them", text: reply.say }); call_.say = reply.say; call_.draft = "";
+    if (reply.done) { call_.end = reply; if (reply.score && reply.score > Number(store.get(`best:${call_.id}`) || 0)) store.set(`best:${call_.id}`, String(reply.score)); }
+    speak(reply.say);
+  } catch (err) {
+    if (call_.turns.at(-1)?.who === "her") call_.draft = call_.turns.pop().text; // keep her answer so she can resend it
+    toast(err.message || "The line dropped. Try again.");
+  }
+  call_.busy = false; phone();
+}
+
+function stopListening() { if (call_?.rec) { call_.rec.stop(); call_.rec = null; } }
+
+document.getElementById("call").addEventListener("click", async (e) => {
+  const t = e.target.closest("button"); if (!t) return;
+  e.stopPropagation();
+  if (t.id === "callGo" || t.id === "callAgain") { speak(""); call_ = { id: call_.id, turns: [] }; await turn(); return; } // the empty line unlocks the voice inside her tap (iOS)
+  if (t.id === "again") { speak(call_.say); return; }
+  if (t.id === "talk") {
+    if (call_.rec) { stopListening(); phone(); return; }
+    speechSynthesis.cancel();
+    const rec = new Rec(), base = document.getElementById("answer").value.trim();
+    rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = (ev) => { const said = [...ev.results].map((x) => x[0].transcript).join(" "); const box = document.getElementById("answer"); if (box) box.value = (base ? base + " " : "") + said; call_.draft = box?.value; };
+    rec.onerror = () => { stopListening(); phone(); toast("Couldn't hear you. Try the 🎤 on your keyboard."); };
+    rec.onend = () => { if (call_?.rec === rec) { call_.rec = null; phone(); } };
+    call_.rec = rec; rec.start(); phone(); return;
+  }
+  if (t.id === "send") {
+    const text = document.getElementById("answer").value.trim();
+    if (!text) { toast("Say or type your answer first"); return; }
+    stopListening(); speak(""); call_.turns.push({ who: "her", text }); await turn(); return;
+  }
+  if (t.id === "hang" || t.id === "hang2") { stopListening(); speechSynthesis?.cancel(); document.getElementById("call").close(); render(); }
+});
+document.getElementById("call").addEventListener("input", (e) => { if (e.target.id === "answer") call_.draft = e.target.value; });
+document.getElementById("call").addEventListener("close", () => { stopListening(); window.speechSynthesis?.cancel(); });
 
 document.addEventListener("submit", async (e) => {
   if (e.target.id !== "storyForm") return;
