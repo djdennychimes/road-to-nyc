@@ -100,6 +100,7 @@
   .status button { padding: 8px 12px; border-radius: 999px; border: 1.5px solid var(--rule); background: var(--card); font-size: 14px; font-weight: 600; }
   .status button[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); color: #fff; }
   .prep { margin: 6px 0 0; padding-left: 20px; }
+  .chip.hit { background: #dff3ef; color: #0b5e55; } .chip.miss { background: #fff1d6; color: #8a5a00; }
 
   details.fold { margin-top: 40px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: 14px 18px; }
   details.fold summary { font: 700 20px/1.3 "Bricolage Grotesque", sans-serif; cursor: pointer; }
@@ -228,7 +229,8 @@ function chips(r) {
   if (r.pay) out.push(`<span class="chip">${esc(r.pay)}</span>`);
   if (r.deadline) { const d = daysTo(r.deadline); out.push(`<span class="chip ${d <= 14 ? "soon" : ""}">${d <= 0 ? "Due today" : d === 1 ? "Due tomorrow" : `Due ${day(r.deadline)}`}</span>`); }
   if (r.status !== "ready") out.push(`<span class="chip st ${r.status}">${{ applied: "Applied", heard: "Heard back", interview: "Interview", offer: "Offer!", passed: "Not this one" }[r.status]}${r.appliedOn ? ` ${day(r.appliedOn)}` : ""}</span>`);
-  if (r.followUp) out.push(`<span class="chip">Check in ${day(r.followUp)}</span>`);
+  if (r.followUp) out.push(`<span class="chip ${r.followUpNote ? "soon" : ""}">${r.followUpNote ? "Time to check in" : `Check in ${day(r.followUp)}`}</span>`);
+  if (r.match) out.push(`<span class="chip">Resume uses ${r.match.hit.length} of ${r.match.hit.length + r.match.miss.length} listing words</span>`);
   return `<div class="chips">${out.join("")}</div>`;
 }
 
@@ -239,6 +241,9 @@ function card(r) {
   if (c) steps.push(`<li class="co-page"><h3>Get to know ${esc(r.company)}</h3>${c.about ? `<p>${esc(c.about)}</p>` : ""}${c.brands?.length ? `<p><b>Brands and products:</b> ${c.brands.map(esc).join(", ")}</p>` : ""}${c.news?.length ? `<p><b>In the news</b></p><ul>${c.news.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}${c.culture ? `<p><b>What it's like there:</b> ${esc(c.culture)}</p>` : ""}${c.whyYou ? `<p><b>Why you fit:</b> ${esc(c.whyYou)}</p>` : ""}</li>`);
   steps.push(`<li><h3>Open the listing</h3><a class="btn small" href="${esc(r.url)}" target="_blank" rel="noopener">Open ${esc(r.company)}'s posting</a></li>`);
   if (p.resume) steps.push(`<li><h3>Your resume for this one</h3><button class="btn small" data-doc="resume" data-id="${esc(r.id)}">View and save as PDF</button></li>`);
+  const m = r.match, kw = p.keywords || [];
+  if (kw.length) steps.push(`<li><h3>Words from the listing</h3><p class="why" style="margin:2px 0 6px">${m ? (m.miss.length ? "Green ones are already on your resume. Work the yellow ones into your resume or answers where they're true for you." : "Your resume already uses every one. Nice.") : "Recruiters and resume filters look for these. Use the ones that are true for you in your answers."}</p><div class="chips">${kw.map((k) => `<span class="chip ${m ? (m.hit.includes(k) ? "hit" : "miss") : ""}">${m?.hit.includes(k) ? "✓ " : ""}${esc(k)}</span>`).join("")}</div></li>`);
+  if (r.followUpNote) steps.push(`<li><h3>Check in with them</h3><div class="qa">${esc(r.followUpNote)}<br><button class="btn small" data-copy="followUpNote" data-id="${esc(r.id)}">Copy</button></div></li>`);
   if (p.coverLetter) steps.push(`<li><h3>Your cover letter</h3><button class="btn small" data-doc="coverLetter" data-id="${esc(r.id)}">View and save as PDF</button></li>`);
   if (p.answers?.length) steps.push(`<li><h3>Answers, ready to paste</h3>${p.answers.map((a, i) => `<div class="qa"><b>${esc(a.q)}</b>${esc(a.a)}<br><button class="btn small" data-copy="answers" data-i="${i}" data-id="${esc(r.id)}">Copy</button></div>`).join("")}</li>`);
   if (p.outreach?.length) steps.push(`<li><h3>Optional: a note to send</h3>${p.outreach.map((o, i) => `<div class="qa"><b>To ${esc(o.to)}</b>${esc(o.note)}<br><button class="btn small" data-copy="outreach" data-i="${i}" data-id="${esc(r.id)}">Copy</button></div>`).join("")}</li>`);
@@ -267,12 +272,23 @@ function storyCard() {
   </details>`;
 }
 
+// Applied 10+ days ago with no news: a ready note to send (she sends it, or doesn't). "Done" hides it on this phone only.
+function checkIns() {
+  const due = (v => (v.checkIns || []).map(find).filter((r) => r && !store.get(`checked:${r.id}`)))(state.view);
+  if (!due.length) return "";
+  return `<section><h2>Time to check in</h2><p class="sub">No news in 10 days is normal. A short, friendly note keeps you on their radar. Paste it into an email or LinkedIn message to the recruiter.</p>
+    ${due.map((r) => `<div class="role"><div style="padding:16px 18px"><div class="co">${esc(r.company)}</div><div class="ti">${esc(r.title)}</div>
+      <div class="qa">${esc(r.followUpNote)}</div><button class="btn small main" data-copy="followUpNote" data-id="${esc(r.id)}">Copy note</button><button class="btn small" data-checked="${esc(r.id)}">Sent it</button><button class="btn small" data-status="heard" data-id="${esc(r.id)}">They wrote back</button></div></div>`).join("")}
+  </section>`;
+}
+
 function render() {
   const v = state.view;
   const dream = v.thisWeek.filter((r) => r.tier === "dream"), quick = v.thisWeek.filter((r) => r.tier !== "dream");
   document.getElementById("app").innerHTML = `
     ${hero()}
     ${STANDALONE || store.get("tipSeen") ? "" : `<div class="tip"><p><b>Keep this on your home screen.</b> In Safari, tap Share, then “Add to Home Screen.” It opens like an app, already signed in.</p><button class="btn small" id="tipOk">Got it</button></div>`}
+    ${checkIns()}
     ${storyDone() ? "" : storyCard()}
     <section><h2>This week's picks</h2><p class="sub">${v.thisWeek.length ? "Everything is drafted. Your part: read it, tweak anything that doesn't sound like you, and submit." : ""}</p>
       ${v.thisWeek.length ? "" : `<div class="empty">You're all caught up. New picks land here on Sundays.</div>`}
@@ -300,7 +316,7 @@ document.addEventListener("click", async (e) => {
   if (!t) return;
   if (t.dataset.open) { open.has(t.dataset.open) ? open.delete(t.dataset.open) : open.add(t.dataset.open); render(); return; }
   if (t.dataset.copy) {
-    const p = find(t.dataset.id).packet, v = t.dataset.i != null ? p[t.dataset.copy][t.dataset.i] : p[t.dataset.copy];
+    const r = find(t.dataset.id), p = t.dataset.copy === "followUpNote" ? r : r.packet, v = t.dataset.i != null ? p[t.dataset.copy][t.dataset.i] : p[t.dataset.copy];
     await navigator.clipboard.writeText(typeof v === "string" ? v : v.a ?? v.note); toast("Copied"); return;
   }
   if (t.dataset.call) { call_ = { id: t.dataset.call, turns: [] }; phone(); document.getElementById("call").showModal(); return; }
@@ -319,6 +335,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
   if (t.id === "inboxYes") { try { const fresh = await call("inbox"); state = fresh || { ...state, story: { ...state.story, inbox: "yes" } }; render(); toast("Got it. It gets set up with you soon 💌"); } catch (err) { toast(err.message); } return; }
+  if (t.dataset.checked) { store.set(`checked:${t.dataset.checked}`, "1"); render(); toast("Nice. That's how people get remembered 💌"); return; }
   if (t.id === "tipOk") { store.set("tipSeen", "1"); t.parentElement.remove(); return; }
   if (t.id === "docPrint") window.print();
   if (t.id === "docCopy") { await navigator.clipboard.writeText(document.getElementById("doc").dataset.text); toast("Copied"); }
@@ -355,12 +372,20 @@ function speak(text) {
   speechSynthesis.speak(u);
 }
 
+// How she sounded, from her own answers: filler words and answer length (~150 words is a minute out loud).
+function deliveryNote(d) {
+  if (!d) return "";
+  const f = d.fillers.slice(0, 3).map((x) => `“${esc(x.word)}” ×${x.n}`).join(", ");
+  const secs = (w) => Math.round(w / 150 * 60);
+  return `<p><b>How you sounded:</b> ${f ? `filler words ${f}.` : "no filler words at all. Smooth!"} Your answers ran about ${secs(d.avg)} seconds${secs(d.longest) > 120 ? `, and the longest about ${secs(d.longest)} seconds. Aim for one to two minutes.` : "."}</p>`;
+}
+
 function phone() {
   const r = find(call_.id), e = call_.end;
   document.getElementById("phone").innerHTML = `
     <div class="who"><i aria-hidden="true">📞</i><div><b>${esc(r.company)}</b><small>${esc(r.title)}</small></div><button class="btn small hang" id="hang">Hang up</button></div>
     <div class="said">${call_.busy ? '<p class="q dots">Thinking</p>' : call_.say ? `<p class="q">${esc(call_.say)}</p>` : `<p class="q">Ready when you are. Find a quiet spot, turn your sound on, and answer out loud like it's the real call.</p>`}
-      ${e ? `<div class="score">${e.score ? `<div class="num">${esc(e.score)}/10</div>` : ""}${e.good ? `<p><b>Best part:</b> ${esc(e.good)}</p>` : ""}${e.fix ? `<p><b>Try this next time:</b> ${esc(e.fix)}</p>` : ""}</div>` : ""}</div>
+      ${e ? `<div class="score">${e.score ? `<div class="num">${esc(e.score)}/10</div>` : ""}${e.good ? `<p><b>Best part:</b> ${esc(e.good)}</p>` : ""}${e.fix ? `<p><b>Try this next time:</b> ${esc(e.fix)}</p>` : ""}${deliveryNote(e.delivery)}</div>` : ""}</div>
     ${!call_.say && !call_.busy ? `<button class="btn main" id="callGo">Start the call</button>` : e ? `<div class="row"><button class="btn main" id="callAgain">Try it again</button><button class="btn" id="hang2">Done for now</button></div>` : `
       <textarea id="answer" placeholder="Your answer…" aria-label="Your answer" ${call_.busy ? "disabled" : ""}>${esc(call_.draft || "")}</textarea>
       <p class="hint">${CAN_LISTEN ? "Tap Talk and answer out loud, or" : "Tap"} the 🎤 on your keyboard to talk your answer.</p>
@@ -371,7 +396,7 @@ function phone() {
 function previewTurn(turns) {
   const n = turns.filter((t) => t.who === "her").length, r = find(call_.id);
   const qs = [`Hi, this is the recruiting team at ${r.company}. Thanks for hopping on. Tell me a little about yourself.`, `Love that. Why ${r.company}?`, "Tell me about a time you got someone excited about something.", "Pitch me one of our products like I'm a customer.", "What questions do you have for me?"];
-  return n < 5 ? { say: qs[n], done: false } : { say: "Thanks so much, that was great. We'll be in touch.", done: true, score: 7, good: "Your energy on the pitch felt real.", fix: "Lead with one number from your story, then tell how you did it." };
+  return n < 5 ? { say: qs[n], done: false } : { say: "Thanks so much, that was great. We'll be in touch.", done: true, score: 7, good: "Your energy on the pitch felt real.", fix: "Lead with one number from your story, then tell how you did it.", delivery: { fillers: [{ word: "like", n: 4 }, { word: "um", n: 2 }], longest: 340, avg: 120 } };
 }
 
 async function turn() {
