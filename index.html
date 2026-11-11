@@ -108,7 +108,9 @@
   .mini { padding: 10px 0; border-top: 1px solid var(--rule); font-size: 15px; }
   .mini:first-of-type { margin-top: 10px; }
 
-  .story label { display: block; margin: 14px 0 4px; font-weight: 600; }
+  .story label, .add label { display: block; margin: 14px 0 4px; font-weight: 600; }
+  .add input { width: 100%; padding: 10px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--rule); background: var(--paper); font: inherit; color: var(--ink); }
+  .add button { margin-top: 14px; }
   .story textarea { width: 100%; min-height: 70px; padding: 10px 12px; border-radius: var(--r-sm); border: 1.5px solid var(--rule); background: var(--paper);
     font: inherit; color: var(--ink); resize: vertical; }
   .story .done { color: var(--teal); font-weight: 600; }
@@ -196,7 +198,7 @@ const STOPS = [["Story", "story"], ["Applied", "applied"], ["Heard back", "heard
 async function call(op, extra = {}) {
   if (PREVIEW) return null; // the preview keeps taps on the page only
   const res = await fetch(API, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ k: KEY, op, ...extra }) });
-  if (!res.ok) throw new Error(res.status === 401 ? "This link is missing its key. Open the exact link you were sent." : "Couldn't reach DOUG. Check your signal and try again.");
+  if (!res.ok) throw new Error(res.status === 401 ? "This link is missing its key. Open the exact link you were sent." : (await res.json().catch(() => null))?.error || "Couldn't reach DOUG. Check your signal and try again.");
   return res.json();
 }
 
@@ -295,6 +297,13 @@ function render() {
       ${dream.length ? `<h3 style="margin:18px 0 0;font-size:18px">Dream picks</h3>${dream.map(card).join("")}` : ""}
       ${quick.length ? `<h3 style="margin:22px 0 0;font-size:18px">Quick ones, about 3 minutes each</h3>${quick.map(card).join("")}` : ""}
     </section>
+    <section><h2>Jobs you found</h2><p class="sub">Found one on LinkedIn or anywhere else? Drop it here so it's tracked with the rest, then apply and tap Applied ✓ like any card.</p>
+      <form id="addForm" class="add"><label for="a-url">Link to the job</label><input id="a-url" name="url" type="url" inputmode="url" placeholder="https://…" required>
+        <label for="a-company">Company</label><input id="a-company" name="company" maxlength="80" required>
+        <label for="a-title">Role</label><input id="a-title" name="title" maxlength="120" required>
+        <button class="btn main" type="submit">Add it</button></form>
+      ${(v.own || []).map(card).join("")}
+    </section>
     ${v.moving.length ? `<section><h2>On the move</h2><p class="sub">Everything you've sent, and what's next for each.</p>${v.moving.map(card).join("")}</section>` : ""}
     ${v.shelf.length ? `<details class="fold"><summary>More roles (${v.shelf.length})</summary><p class="sub">Extras, if you're feeling it. No pressure.</p>${v.shelf.map(card).join("")}</details>` : ""}
     ${storyDone() ? storyCard() : ""}
@@ -304,7 +313,7 @@ function render() {
   requestAnimationFrame(() => { const f = document.getElementById("fill"); if (f) f.style.width = f.dataset.w + "%"; });
 }
 
-const find = (id) => [...state.view.thisWeek, ...state.view.moving, ...state.view.shelf, ...state.view.quiet].find((r) => r.id === id);
+const find = (id) => [...state.view.thisWeek, ...(state.view.own || []), ...state.view.moving, ...state.view.shelf, ...state.view.quiet].find((r) => r.id === id);
 
 function md(text) {
   return esc(text).split("\n").map((l) => /^### /.test(l) ? `<h3>${l.slice(4)}</h3>` : /^## /.test(l) ? `<h2>${l.slice(3)}</h2>` : /^# /.test(l) ? `<h1>${l.slice(2)}</h1>` : /^[-*] /.test(l) ? `<li>${l.slice(2)}</li>` : l.trim() ? `<p>${l}</p>` : "")
@@ -442,6 +451,16 @@ document.getElementById("call").addEventListener("input", (e) => { if (e.target.
 document.getElementById("call").addEventListener("close", () => { stopListening(); hush(); });
 
 document.addEventListener("submit", async (e) => {
+  if (e.target.id === "addForm") {
+    e.preventDefault();
+    const job = Object.fromEntries(new FormData(e.target));
+    try {
+      const fresh = await call("add", { job });
+      if (fresh) state = fresh; else (state.view.own ||= []).unshift({ ...job, id: job.url, tier: "shelf", status: "ready", why: "You found this one ✨", packet: { own: true } });
+      render(); toast("Added. Go get it 💪");
+    } catch (err) { toast(err.message); }
+    return;
+  }
   if (e.target.id !== "storyForm") return;
   e.preventDefault();
   const answers = Object.fromEntries(new FormData(e.target));
